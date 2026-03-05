@@ -1478,11 +1478,11 @@ export default function SatisfactoryPlanner() {
         )}
 
         <div style={{ padding:"9px 13px", borderTop:"1px solid #1c2333" }}>
-          <div style={{ fontSize:10, color:"#4a5568", letterSpacing:1, marginBottom:4 }}>BELT SPEEDS</div>
+          <div style={{ fontSize:11, color:"#4a5568", letterSpacing:1, marginBottom:5 }}>BELT SPEEDS</div>
           {BELT_MARKS.map(b=>(
-            <div key={b.mk} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
-              <div style={{ width:11, height:2, background:b.color }} />
-              <span style={{ fontSize:10, color:"#8b949e" }}>Mk.{b.mk} · {b.speed}/min</span>
+            <div key={b.mk} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+              <div style={{ width:13, height:2, background:b.color }} />
+              <span style={{ fontSize:12, color:"#8b949e" }}>Mk.{b.mk} · <span style={{ color:b.color }}>{b.speed}/min</span></span>
             </div>
           ))}
         </div>
