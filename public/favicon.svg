@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <clipPath id="pc">
+      <circle cx="32" cy="32" r="23"/>
+    </clipPath>
+    <!-- mask: white = show, black = hide -->
+    <mask id="ring-front">
+      <!-- show everything -->
+      <rect width="64" height="64" fill="white"/>
+      <!-- hide the bottom half (behind planet) -->
+      <rect x="0" y="32" width="64" height="32" fill="black"/>
+    </mask>
+    <mask id="ring-back">
+      <!-- show only bottom half -->
+      <rect x="0" y="32" width="64" height="32" fill="white"/>
+    </mask>
+    <radialGradient id="pg" cx="38%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#0a0e14"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Ring back half (below planet, drawn first) -->
+  <ellipse cx="32" cy="32" rx="30" ry="7.5"
+    fill="none" stroke="#f0a500" stroke-width="2.2" opacity="0.35"
+    mask="url(#ring-back)"/>
+
+  <!-- Planet body -->
+  <circle cx="32" cy="32" r="23" fill="url(#pg)"/>
+
+  <!-- Grid lines clipped to planet sphere -->
+  <g clip-path="url(#pc)" fill="none" stroke="#f0a500" stroke-width="1.1" opacity="0.5">
+    <ellipse cx="32" cy="32" rx="23" ry="7"/>
+    <ellipse cx="32" cy="32" rx="23" ry="14"/>
+    <ellipse cx="32" cy="32" rx="7"  ry="23"/>
+    <ellipse cx="32" cy="32" rx="14" ry="23"/>
+    <line x1="9"  y1="32" x2="55" y2="32" stroke-width="1.4" opacity="0.9"/>
+    <line x1="32" y1="9"  x2="32" y2="55" stroke-width="1.4" opacity="0.9"/>
+  </g>
+
+  <!-- Planet outline -->
+  <circle cx="32" cy="32" r="23" fill="none" stroke="#f0a500" stroke-width="1.6"/>
+
+  <!-- Ring front half (above planet, drawn last) -->
+  <ellipse cx="32" cy="32" rx="30" ry="7.5"
+    fill="none" stroke="#f0a500" stroke-width="2.2" opacity="0.9"
+    mask="url(#ring-front)"/>
+</svg>
