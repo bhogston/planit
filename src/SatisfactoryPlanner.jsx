@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── ORTHOGONAL BELT ROUTER ──────────────────────────────────────────────────
 // Produces a right-angle SVG path from source building edge to target edge.
@@ -1507,6 +1508,7 @@ export default function SatisfactoryPlanner() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
