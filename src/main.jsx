@@ -1,10 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Analytics } from '@vercel/analytics/react'
 import './index.css'
-import SatisfactoryPlanner from './SatisfactoryPlanner'
+import App from './SatisfactoryPlanner.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <SatisfactoryPlanner />
-  </StrictMode>
+    <App />
+    <Analytics />
+  </StrictMode>,
 )
