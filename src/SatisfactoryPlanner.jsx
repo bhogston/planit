@@ -184,12 +184,14 @@ function BeltRoute({ conn, fromP, toP, placed, beltColor, beltMk, beltSpeed, out
   const overPct = overcap ? Math.min(1, (outputRate - beltSpeed) / beltSpeed) : 0;
 
   return (
-    <g onClick={onClick} style={{ cursor: "pointer", pointerEvents: "stroke" }}>
+    <g onClick={onClick} style={{ cursor: "pointer", pointerEvents: "visibleStroke" }}>
       {/* Overcapacity glow */}
       {overcap && (
         <path d={dPath} fill="none" stroke="#ef4444" strokeWidth={6 + overPct * 6}
           strokeOpacity={0.25 + overPct * 0.2} strokeLinecap="round" strokeLinejoin="round" />
       )}
+      {/* Wide invisible hit area for easier clicking */}
+      <path d={dPath} fill="none" stroke="transparent" strokeWidth={16} strokeLinecap="round" />
       {/* Shadow / glow for selected */}
       {isSelected && (
         <path d={dPath} fill="none" stroke={trackColor} strokeWidth={8} opacity={0.2} strokeLinecap="round" strokeLinejoin="round" />
@@ -410,7 +412,10 @@ const RECIPES = {
 
 // Build a lookup by output item name
 const BY_OUTPUT = {};
-for (const [key, r] of Object.entries(RECIPES)) BY_OUTPUT[r.out] = { key, ...r };
+for (const [key, r] of Object.entries(RECIPES)) {
+  // Only index non-alt recipes so normal recipes are used by default in the chain solver
+  if (!r.alt) BY_OUTPUT[r.out] = { key, ...r };
+}
 
 // Items with no recipe → treated as raw inputs
 const RAW = new Set([
@@ -469,7 +474,7 @@ function RatioCalculator() {
   const [showFrac, setShowFrac] = useState(false);
   const [showSugg, setShowSugg] = useState(false);
 
-  const allItems = useMemo(() => Object.values(RECIPES).map(r => r.out).sort(), []);
+  const allItems = useMemo(() => [...new Set(Object.values(RECIPES).filter(r => !r.alt).map(r => r.out))].sort(), []);
   const suggestions = useMemo(() =>
     query.length > 0 ? allItems.filter(i => i.toLowerCase().includes(query.toLowerCase())).slice(0, 7) : [],
     [query, allItems]);
@@ -696,6 +701,8 @@ export default function SatisfactoryPlanner() {
   const panStart     = useRef({ x: 0, y: 0 });
   const spaceDown    = useRef(false);
   const history      = useRef([]); // [{placed, connections}, ...]
+  const dragState    = useRef(null); // { id, startMouseX, startMouseY, startGridX, startGridY }
+  const [dragPos,    setDragPos]    = useState(null); // { id, x, y } - live drag position
 
   // Push current state onto history before a destructive action
   const pushHistory = useCallback(() => {
@@ -712,6 +719,54 @@ export default function SatisfactoryPlanner() {
     setSelConn(null);
   }, []);
 
+  // Drag to move buildings
+  const startDrag = useCallback((e, placedItem) => {
+    if (tool !== "select") return;
+    e.stopPropagation();
+    e.preventDefault();
+    const d = BUILDINGS[placedItem.type];
+    dragState.current = {
+      id: placedItem.id,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startGridX: placedItem.x,
+      startGridY: placedItem.y,
+      w: d.w,
+      h: d.h,
+    };
+    setSelPlaced(placedItem.id);
+    setDragPos({ id: placedItem.id, x: placedItem.x, y: placedItem.y });
+
+    const onMove = (ev) => {
+      if (!dragState.current) return;
+      const ds = dragState.current;
+      const dx = Math.round((ev.clientX - ds.startMouseX) / (CELL * zoom));
+      const dy = Math.round((ev.clientY - ds.startMouseY) / (CELL * zoom));
+      const newX = Math.max(0, Math.min(gridW - ds.w, ds.startGridX + dx));
+      const newY = Math.max(0, Math.min(gridH - ds.h, ds.startGridY + dy));
+      setDragPos({ id: ds.id, x: newX, y: newY });
+    };
+
+    const onUp = (ev) => {
+      if (!dragState.current) return;
+      const ds = dragState.current;
+      const dx = Math.round((ev.clientX - ds.startMouseX) / (CELL * zoom));
+      const dy = Math.round((ev.clientY - ds.startMouseY) / (CELL * zoom));
+      const newX = Math.max(0, Math.min(gridW - ds.w, ds.startGridX + dx));
+      const newY = Math.max(0, Math.min(gridH - ds.h, ds.startGridY + dy));
+      if (newX !== ds.startGridX || newY !== ds.startGridY) {
+        pushHistory();
+        setPlaced(prev => prev.map(p => p.id === ds.id ? { ...p, x: newX, y: newY } : p));
+      }
+      dragState.current = null;
+      setDragPos(null);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [tool, zoom, gridW, gridH, pushHistory]);
   // Space bar pan mode + Ctrl+Z undo
   useEffect(() => {
     const down = e => {
@@ -940,7 +995,7 @@ export default function SatisfactoryPlanner() {
         <div style={{ padding:"8px 11px", borderBottom:"1px solid #1c2333" }}>
           <div style={{ fontSize:10, color:"#4a5568", letterSpacing:1, marginBottom:5 }}>TOOLS</div>
           <div style={{ display:"flex", gap:5 }}>
-            {[["select","↖","SEL"],["place","+","PLACE"],["connect","⟶","WIRE"],["delete","✕","DEL"]].map(([id,ic,lb])=>(
+            {[["select","↖","SEL"],["place","+","PLACE"],["connect","⟶","BELT"],["delete","✕","DEL"]].map(([id,ic,lb])=>(
               <button key={id} className={`tb${tool===id?" on":""}`}
                 onClick={()=>{ setTool(id); if(id!=="place") setSelBuild(null); }}
                 style={{ flex:1, padding:"4px 2px", background:"#0a0e14", border:"1px solid #2a3040", color:"#8b949e", fontSize:7, borderRadius:3 }}>
@@ -1234,8 +1289,13 @@ export default function SatisfactoryPlanner() {
 
           {placed.map(p=>{
             const d=BUILDINGS[p.type]; const isSel=p.id===selPlaced; const isCon=p.id===connecting;
+            const dp = dragPos && dragPos.id === p.id ? dragPos : null;
+            const dispX = dp ? dp.x : p.x;
+            const dispY = dp ? dp.y : p.y;
+            const isDragging = !!dp;
             return <div key={p.id} className={`pi${isSel?" on":""}`}
-              style={{ position:"absolute", left:p.x*CELL+1, top:p.y*CELL+1, width:d.w*CELL-2, height:d.h*CELL-2, background:d.color+"22", border:`2px solid ${isCon?"#60a5fa":isSel?"#f0a500":d.color+"99"}`, borderRadius:4, zIndex:4, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", boxShadow:isSel?`0 0 10px ${d.color}55`:"none" }}
+              style={{ position:"absolute", left:dispX*CELL+1, top:dispY*CELL+1, width:d.w*CELL-2, height:d.h*CELL-2, background:d.color+"22", border:`2px solid ${isCon?"#60a5fa":isSel?"#f0a500":d.color+"99"}`, borderRadius:4, zIndex:isDragging?10:4, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", boxShadow:isDragging?`0 0 16px ${d.color}88`:(isSel?`0 0 10px ${d.color}55`:"none"), opacity:isDragging?0.85:1, cursor:tool==="select"?"grab":"default", transition:isDragging?"none":undefined }}
+              onMouseDown={e => { if (tool === "select") startDrag(e, p); }}
               onClick={()=>{
                 if(tool==="connect") doConnect(p.id);
                 else if(tool==="delete"){ pushHistory(); setPlaced(prev=>prev.filter(x=>x.id!==p.id)); setConnections(prev=>prev.filter(c=>c.from!==p.id&&c.to!==p.id)); }
@@ -1497,7 +1557,7 @@ export default function SatisfactoryPlanner() {
             <b style={{ color:"#f0a500" }}>Pan:</b> Two-finger scroll (trackpad), middle-mouse drag, or Space+drag<br/>
             <b style={{ color:"#f0a500" }}>Zoom:</b> Pinch (trackpad), Ctrl+scroll, or +/− buttons. FIT to frame all buildings<br/>
             <b style={{ color:"#f0a500" }}>Place:</b> PLACE tool → pick building from sidebar → click grid<br/>
-            <b style={{ color:"#f0a500" }}>Connect:</b> WIRE tool → pick belt mark → click source → click target<br/>
+            <b style={{ color:"#f0a500" }}>Connect:</b> BELT tool → pick belt mark → click source → click target<br/>
             <b style={{ color:"#f0a500" }}>Delete belt:</b> Click a belt → properties panel → DELETE BELT<br/>
             <b style={{ color:"#f0a500" }}>Ratio tab:</b> Type item name → autocomplete → set rate → Calculate<br/>
             <b style={{ color:"#f0a500" }}>Clock:</b> Select building → slider. 101–250% needs Power Shards<br/>
